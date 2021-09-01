@@ -16,10 +16,12 @@ const sendUserVerificationEmail = async (
 	next
 ) => {
 	try {
-		const host = req.get('host')
-		const { protocol } = req
-		const url = `${protocol}://${host}/api/v1/users/email/verify/${token}`
+		// Same Server APP
+		// const host = req.get('host')
+		// const { protocol } = req
+		// const url = `${protocol}://${host}/api/v1/users/email/verify/${token}`
 
+		const url = `${process.env.CLIENT_APP_URL}/email/verify/${token}`
 		const email = new Email(user, url)
 		if (verificationType === 'resend') {
 			await email.sendVerification()
@@ -77,8 +79,7 @@ exports.logout = (req, res) => {
 
 	res.status(200).json({ status: 'success' })
 }
-
-exports.signUp = catchAsync(async (req, res, next) => {
+const isVerificationPending = async (req, res) => {
 	if (await User.findOne({ email: req.body.email, emailVerified: false })) {
 		return res.status(200).json({
 			status: 'success',
@@ -86,7 +87,9 @@ exports.signUp = catchAsync(async (req, res, next) => {
 			message: 'Please verify your email address'
 		})
 	}
+}
 
+exports.signUp = catchAsync(async (req, res, next) => {
 	const user = new User({
 		name: req.body.name,
 		email: req.body.email,
@@ -101,10 +104,15 @@ exports.signUp = catchAsync(async (req, res, next) => {
 })
 
 exports.login = catchAsync(async (req, res, next) => {
+	const isPending = await isVerificationPending(req, res)
+	if (isPending) {
+		return
+	}
+
 	const { email, password } = req.body
 
 	if (!email || !password) {
-		return next(new AppError('Please provide password and email address'), 400)
+		return next(new AppError('Please provide password and email address', 400))
 	}
 
 	const user = await User.findOne({ email: email }).select('+password')
@@ -132,9 +140,12 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 	await user.save({ validateBeforeSave: false })
 
 	try {
-		const resetURL = `${req.protocol}://${req.get(
-			'host'
-		)}/api/v1/users/password/reset/${resetToken}`
+		// Same server app
+		// const resetURL = `${req.protocol}://${req.get(
+		// 	'host'
+		// )}/api/v1/users/password/reset/${resetToken}`
+
+		const resetURL = `${process.env.CLIENT_APP_URL}/password/reset/${resetToken}`
 		await new Email(user, resetURL).sendPasswordReset()
 
 		res.status(200).json({
@@ -167,7 +178,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 	})
 
 	if (!user) {
-		return next(new AppError('Token is invalid or expired'), 400)
+		return next(new AppError('Token is invalid or expired', 400))
 	}
 
 	user.password = req.body.password
@@ -191,7 +202,7 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
 	})
 
 	if (!user) {
-		return next(new AppError('Token is invalid or expired'), 400)
+		return next(new AppError('Token is invalid or expired', 400))
 	}
 
 	user.emailVerified = true
@@ -217,7 +228,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 	const user = await User.findById(req.user.id).select('+password')
 
 	if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
-		return next(new AppError('Your current password is incorrect'), 401)
+		return next(new AppError('Your current password is incorrect', 401))
 	}
 
 	user.password = req.body.password
