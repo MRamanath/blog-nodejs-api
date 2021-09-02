@@ -90,6 +90,11 @@ const isVerificationPending = async (req, res) => {
 }
 
 exports.signUp = catchAsync(async (req, res, next) => {
+	const isPending = await isVerificationPending(req, res)
+	if (isPending) {
+		return
+	}
+
 	const user = new User({
 		name: req.body.name,
 		email: req.body.email,
