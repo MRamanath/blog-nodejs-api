@@ -21,7 +21,7 @@ const sendUserVerificationEmail = async (
 		// const { protocol } = req
 		// const url = `${protocol}://${host}/api/v1/users/email/verify/${token}`
 
-		const url = `${process.env.CLIENT_APP_URL}/email/verify/${token}`
+		const url = `${process.env.CLIENT_APP_URL}/email/verify/${token}?email=${user.email}`
 		const email = new Email(user, url)
 		if (verificationType === 'resend') {
 			await email.sendVerification()
@@ -90,11 +90,6 @@ const isVerificationPending = async (req, res) => {
 }
 
 exports.signUp = catchAsync(async (req, res, next) => {
-	const isPending = await isVerificationPending(req, res)
-	if (isPending) {
-		return
-	}
-
 	const user = new User({
 		name: req.body.name,
 		email: req.body.email,
@@ -223,6 +218,11 @@ exports.resendVerificationEmail = catchAsync(async (req, res, next) => {
 		email: req.body.email,
 		emailVerified: false
 	})
+
+	if (!user) {
+		return next(new AppError('Your email is already verified', 400))
+	}
+
 	const token = user.createVerificationToken()
 	await user.save({ validateBeforeSave: false })
 	const message = 'We have sent you a verification email. You can verify now!'
